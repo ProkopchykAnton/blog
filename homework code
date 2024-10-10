@@ -1,15 +1,31 @@
-void main() {
-Map<String, dynamic> mean = {
-    'name': 'Anton',
-    'age': '15',
-    'hobby': 'волейбол, музика'
-  };
-  print(mean);
- 
-  var map = {
-    "key" : ["волейбол", "музика"]
-  };
-  print(map["key"]);
+void main() { 
+
+Map<String, dynamic> mean = { 
+
+    'name': 'Anton', 
+
+    'age': '15', 
+
+    'hobby': 'футбол, музика, Волейбол' 
+
+  }; 
+
+  print(mean); 
+  
+
+  
+
+  var map = { 
+
+    "key" : ["футбол", "музика","Волейбол"] 
+
+  }; 
+
+  print(map["key"]); 
+  print(mean['name']);
+
+  
+
  
 
 }
