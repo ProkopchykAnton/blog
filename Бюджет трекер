@@ -1,0 +1,249 @@
+// 🔁 Повний код прикладено нижче (Flutter, modern UI)
+
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+void main() {
+  runApp(const BudgetApp());
+}
+
+class BudgetApp extends StatelessWidget {
+  const BudgetApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Бюджет Трекер',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
+        scaffoldBackgroundColor: Colors.grey[100],
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.teal,
+          foregroundColor: Colors.white,
+          centerTitle: true,
+          elevation: 0,
+        ),
+      ),
+      home: const ExpenseHomePage(),
+    );
+  }
+}
+
+class Expense {
+  final String category;
+  final double amount;
+  final DateTime date;
+  final bool isIncome;
+
+  Expense(this.category, this.amount, this.date, this.isIncome);
+
+  Map<String, dynamic> toJson() => {
+        'category': category,
+        'amount': amount,
+        'date': date.toIso8601String(),
+        'isIncome': isIncome,
+      };
+
+  factory Expense.fromJson(Map<String, dynamic> json) => Expense(
+        json['category'],
+        json['amount'],
+        DateTime.parse(json['date']),
+        json['isIncome'] ?? false,
+      );
+}
+
+class ExpenseHomePage extends StatefulWidget {
+  const ExpenseHomePage({super.key});
+
+  @override
+  State<ExpenseHomePage> createState() => _ExpenseHomePageState();
+}
+
+class _ExpenseHomePageState extends State<ExpenseHomePage> {
+  final _categoryController = TextEditingController();
+  final _amountController = TextEditingController();
+  List<Expense> _expenses = [];
+  bool _isIncome = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadExpenses();
+  }
+
+  Future<void> _loadExpenses() async {
+    final prefs = await SharedPreferences.getInstance();
+    final data = prefs.getStringList('expenses') ?? [];
+    setState(() {
+      _expenses = data
+          .map((e) => Expense.fromJson(jsonDecode(e)))
+          .toList()
+          .reversed
+          .toList();
+    });
+  }
+
+  Future<void> _saveExpenses() async {
+    final prefs = await SharedPreferences.getInstance();
+    final data =
+        _expenses.reversed.map((e) => jsonEncode(e.toJson())).toList();
+    await prefs.setStringList('expenses', data);
+  }
+
+  Future<void> _addExpense() async {
+    final category = _categoryController.text.trim();
+    final amount = double.tryParse(_amountController.text) ?? 0;
+    if (category.isNotEmpty && amount > 0) {
+      final newExpense =
+          Expense(category, amount, DateTime.now(), _isIncome);
+      setState(() {
+        _expenses.insert(0, newExpense);
+      });
+      await _saveExpenses();
+      _categoryController.clear();
+      _amountController.clear();
+    }
+  }
+
+  @override
+  void dispose() {
+    _categoryController.dispose();
+    _amountController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Бюджет Трекер')),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            _buildInputForm(),
+            const SizedBox(height: 16),
+            const Text('Операції', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Expanded(child: _buildExpenseList()),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInputForm() {
+    return Card(
+      elevation: 3,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: ChoiceChip(
+                    label: const Text("Витрата"),
+                    selected: !_isIncome,
+                    selectedColor: Colors.redAccent,
+                    onSelected: (_) => setState(() => _isIncome = false),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: ChoiceChip(
+                    label: const Text("Поповнення"),
+                    selected: _isIncome,
+                    selectedColor: Colors.blueAccent,
+                    onSelected: (_) => setState(() => _isIncome = true),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _categoryController,
+              decoration: const InputDecoration(
+                labelText: 'Категорія',
+                prefixIcon: Icon(Icons.category),
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _amountController,
+              decoration: const InputDecoration(
+                labelText: 'Сума',
+                prefixIcon: Icon(Icons.attach_money),
+                border: OutlineInputBorder(),
+              ),
+              keyboardType: TextInputType.number,
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.check_circle),
+                label: Text(_isIncome ? 'Додати поповнення' : 'Додати витрату'),
+                onPressed: _addExpense,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _isIncome ? Colors.blueAccent : Colors.redAccent,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            )
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildExpenseList() {
+    if (_expenses.isEmpty) {
+      return const Center(child: Text('Жодних записів немає.'));
+    }
+
+    return ListView.builder(
+      itemCount: _expenses.length,
+      itemBuilder: (context, index) {
+        final e = _expenses[index];
+        final color = e.isIncome ? Colors.blue : Colors.red;
+        final formattedDate =
+            '${e.date.day.toString().padLeft(2, '0')}.${e.date.month.toString().padLeft(2, '0')}.${e.date.year} ${e.date.hour}:${e.date.minute.toString().padLeft(2, '0')}';
+
+        return Card(
+          color: Colors.white,
+          margin: const EdgeInsets.symmetric(vertical: 6),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          child: ListTile(
+            leading: Icon(
+              e.isIncome ? Icons.trending_up : Icons.trending_down,
+              color: color,
+            ),
+            title: Text(
+              '${e.category} - ${e.amount.toStringAsFixed(2)} грн',
+              style: TextStyle(fontWeight: FontWeight.w600, color: color),
+            ),
+            subtitle: Text(formattedDate),
+            trailing: IconButton(
+              icon: const Icon(Icons.delete_outline, color: Colors.grey),
+              onPressed: () {
+                setState(() {
+                  _expenses.removeAt(index);
+                });
+                _saveExpenses();
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
